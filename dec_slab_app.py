@@ -7,7 +7,9 @@ Original file is located at
     https://colab.research.google.com/drive/1kHJymvJpQRclZ6ilEQ5IlADn5BwsojRr
 """
 
+import streamlit as st
 import math
+import pandas as pd
 
 # ==========================================
 # PART 1: THE DATA BANK
