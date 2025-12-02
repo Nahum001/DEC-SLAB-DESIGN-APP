@@ -98,47 +98,63 @@ def draw_slab_diagram(Lx, Ly, prov_sx, prov_sy):
     prov_sx, prov_sy: Dictionary with 'text' provision for X and Y directions
     """
     
-    # Create Figure
-    fig, ax = pd_plt.subplots(figsize=(6, 5))
+    # Create Figure and Axis
+    fig, ax = pd_plt.subplots(figsize=(8, 6))
     
-    # Draw Slab Rectangle
     # Convert mm to m for plotting scale
     width = Lx / 1000
     height = Ly / 1000
     
-    slab_rect = patches.Rectangle((0, 0), width, height, linewidth=2, edgecolor='black', facecolor='#f0f2f6')
+    # 1. DRAW SLAB OUTLINE
+    # Main Slab
+    slab_rect = patches.Rectangle((0, 0), width, height, linewidth=3, edgecolor='#333333', facecolor='#ffffff')
     ax.add_patch(slab_rect)
     
-    # Draw Short Span Reinforcement (Horizontal Lines distributed vertically)
-    # These represent bars running PARALLEL to Lx (Short Span)
-    # Actually, main bars for short span moment run PARALLEL to Lx, so they are drawn horizontal.
-    # Wait - Structural check:
-    # Short Span moment (Msx) is resisted by bars running ALONG the short span (Lx).
-    # So lines should be horizontal (y=constant).
+    # Add simple dimension lines (Engineering style)
+    # Horizontal Dim (Lx)
+    ax.annotate('', xy=(0, -0.05*height), xytext=(width, -0.05*height),
+                arrowprops=dict(arrowstyle='<->', lw=1.5))
+    ax.text(width/2, -0.08*height, f"Lx = {int(Lx)}mm", ha='center', va='top', fontsize=10)
     
-    # Visualizing 'Main' bars (Red) - Short Span
-    ax.text(width/2, height*0.1, f"Main: {prov_sx['text']}", color='red', ha='center', fontweight='bold')
-    # Draw a few sample lines
-    y_positions = [height * 0.3, height * 0.5, height * 0.7]
-    for y in y_positions:
-        ax.plot([0.1*width, 0.9*width], [y, y], color='red', linewidth=2, linestyle='-')
-        
-    # Draw Long Span Reinforcement (Vertical Lines distributed horizontally)
-    # These run PARALLEL to Ly
-    
-    # Visualizing 'Secondary' bars (Blue) - Long Span
-    ax.text(width*0.1, height/2, f"Sec: {prov_sy['text']}", color='blue', rotation=90, va='center', fontweight='bold')
-    # Draw a few sample lines
-    x_positions = [width * 0.3, width * 0.5, width * 0.7]
-    for x in x_positions:
-        ax.plot([x, x], [0.1*height, 0.9*height], color='blue', linewidth=2, linestyle='--')
+    # Vertical Dim (Ly)
+    ax.annotate('', xy=(-0.05*width, 0), xytext=(-0.05*width, height),
+                arrowprops=dict(arrowstyle='<->', lw=1.5))
+    ax.text(-0.08*width, height/2, f"Ly = {int(Ly)}mm", ha='right', va='center', rotation=90, fontsize=10)
 
-    # Set Chart Properties
-    ax.set_xlim(-0.5, width + 0.5)
-    ax.set_ylim(-0.5, height + 0.5)
+    # 2. DRAW REINFORCEMENT
+    # Main Bars (Along Short Span Lx) -> Drawn as Horizontal Lines
+    # Style: Thick Red Lines
+    y_positions = [height * 0.2, height * 0.4, height * 0.6, height * 0.8]
+    for y in y_positions:
+        # Main bar line
+        ax.plot([0.05*width, 0.95*width], [y, y], color='#e74c3c', linewidth=2.5, linestyle='-', zorder=10)
+        # End hooks (simple representation)
+        ax.plot([0.05*width, 0.05*width], [y-0.02*height, y+0.02*height], color='#e74c3c', linewidth=2.5) # Left hook
+        ax.plot([0.95*width, 0.95*width], [y-0.02*height, y+0.02*height], color='#e74c3c', linewidth=2.5) # Right hook
+
+    # Secondary Bars (Along Long Span Ly) -> Drawn as Vertical Dashed Lines
+    # Style: Thinner Blue Dashed
+    x_positions = [width * 0.2, width * 0.4, width * 0.6, width * 0.8]
+    for x in x_positions:
+        ax.plot([x, x], [0.05*height, 0.95*height], color='#3498db', linewidth=1.5, linestyle='--', zorder=5)
+
+    # 3. LABELS (Callouts)
+    # Main Bar Label with Box
+    bbox_props_main = dict(boxstyle="round,pad=0.3", fc="white", ec="#e74c3c", lw=1)
+    ax.text(width/2, height*0.5, f"Main (B1): {prov_sx['text']}\n(Bottom Layer)", 
+            ha='center', va='center', color='#c0392b', fontweight='bold', bbox=bbox_props_main, fontsize=9, zorder=20)
+
+    # Secondary Bar Label with Box
+    bbox_props_sec = dict(boxstyle="round,pad=0.3", fc="white", ec="#3498db", lw=1)
+    # Offset text slightly so it doesn't overlap perfectly with main text
+    ax.text(width*0.5, height*0.3, f"Sec (B2): {prov_sy['text']}\n(Top Layer)", 
+            ha='center', va='center', color='#2980b9', fontweight='bold', bbox=bbox_props_sec, fontsize=9, zorder=20)
+
+    # Set Chart Properties to look like a drawing
+    ax.set_xlim(-0.2*width, 1.2*width)
+    ax.set_ylim(-0.2*height, 1.2*height)
     ax.set_aspect('equal')
-    ax.axis('off') # Hide axes numbers
-    ax.set_title(f"Slab Plan View ({int(Lx)}mm x {int(Ly)}mm)", fontsize=12)
+    ax.axis('off') # Hide graph axes
     
     return fig
 
