@@ -1,6 +1,8 @@
 import streamlit as st
 import math
 import pandas as pd
+import matplotlib.pyplot as pd_plt
+import matplotlib.patches as patches
 
 # ==========================================
 # PART 1: THE ENGINE (Your Logic)
@@ -61,8 +63,8 @@ def get_bar_provision_details(as_required, bar_dia):
             area_prov_val = area_provided
             break 
     if selected_spacing == 0:
-        return {"text": "FAIL: Increase Bar", "area_prov": 0}
-    return {"text": f"Y{bar_dia} @ {selected_spacing}", "area_prov": area_prov_val}
+        return {"text": "FAIL: Increase Bar", "area_prov": 0, "spacing": 0}
+    return {"text": f"Y{bar_dia} @ {selected_spacing}", "area_prov": area_prov_val, "spacing": selected_spacing}
 
 def check_deflection(Lx, d, fck, As_req, As_prov, panel_index):
     if As_req <= 0: return {"status": "N/A", "actual": 0, "allowable": 0}
@@ -88,6 +90,57 @@ def check_shear(n, Lx, d, fck, As_prov):
     val_1 = (0.12) * k * (100 * rho_l * fck)**(1/3)
     V_Rdc = max(val_1, v_min) * 1000 * d / 1000
     return {"V_Ed": round(V_Ed, 2), "V_Rdc": round(V_Rdc, 2), "status": "PASS" if V_Ed <= V_Rdc else "FAIL", "utilization": round(V_Ed/V_Rdc*100, 1)}
+
+def draw_slab_diagram(Lx, Ly, prov_sx, prov_sy):
+    """
+    Draws a visual representation of the slab with reinforcement.
+    Lx, Ly: Slab dimensions (mm)
+    prov_sx, prov_sy: Dictionary with 'text' provision for X and Y directions
+    """
+    
+    # Create Figure
+    fig, ax = pd_plt.subplots(figsize=(6, 5))
+    
+    # Draw Slab Rectangle
+    # Convert mm to m for plotting scale
+    width = Lx / 1000
+    height = Ly / 1000
+    
+    slab_rect = patches.Rectangle((0, 0), width, height, linewidth=2, edgecolor='black', facecolor='#f0f2f6')
+    ax.add_patch(slab_rect)
+    
+    # Draw Short Span Reinforcement (Horizontal Lines distributed vertically)
+    # These represent bars running PARALLEL to Lx (Short Span)
+    # Actually, main bars for short span moment run PARALLEL to Lx, so they are drawn horizontal.
+    # Wait - Structural check:
+    # Short Span moment (Msx) is resisted by bars running ALONG the short span (Lx).
+    # So lines should be horizontal (y=constant).
+    
+    # Visualizing 'Main' bars (Red) - Short Span
+    ax.text(width/2, height*0.1, f"Main: {prov_sx['text']}", color='red', ha='center', fontweight='bold')
+    # Draw a few sample lines
+    y_positions = [height * 0.3, height * 0.5, height * 0.7]
+    for y in y_positions:
+        ax.plot([0.1*width, 0.9*width], [y, y], color='red', linewidth=2, linestyle='-')
+        
+    # Draw Long Span Reinforcement (Vertical Lines distributed horizontally)
+    # These run PARALLEL to Ly
+    
+    # Visualizing 'Secondary' bars (Blue) - Long Span
+    ax.text(width*0.1, height/2, f"Sec: {prov_sy['text']}", color='blue', rotation=90, va='center', fontweight='bold')
+    # Draw a few sample lines
+    x_positions = [width * 0.3, width * 0.5, width * 0.7]
+    for x in x_positions:
+        ax.plot([x, x], [0.1*height, 0.9*height], color='blue', linewidth=2, linestyle='--')
+
+    # Set Chart Properties
+    ax.set_xlim(-0.5, width + 0.5)
+    ax.set_ylim(-0.5, height + 0.5)
+    ax.set_aspect('equal')
+    ax.axis('off') # Hide axes numbers
+    ax.set_title(f"Slab Plan View ({int(Lx)}mm x {int(Ly)}mm)", fontsize=12)
+    
+    return fig
 
 # ==========================================
 # PART 2: THE INTERFACE (Streamlit)
@@ -151,7 +204,7 @@ if st.button("Calculate Design"):
     def process_result(M, eff_d):
         if M == 0: return 0, As_min, get_bar_provision_details(As_min, bar_dia)
         K = (M * 10**6) / (1000 * eff_d**2 * fck)
-        if K > 0.167: return 9999, 0, {"text": "FAIL (K>0.167)", "area_prov": 0}
+        if K > 0.167: return 9999, 0, {"text": "FAIL (K>0.167)", "area_prov": 0, "spacing": 0}
         z = min(eff_d * (0.5 + math.sqrt(0.25 - K/1.134)), 0.95*eff_d)
         req = (M * 10**6) / (0.87 * fyk * z)
         target = max(req, As_min)
@@ -172,9 +225,13 @@ if st.button("Calculate Design"):
     if targ_sx >= targ_sy:
         res_data.append(["Midspan", "MAIN", "Short (Lx)", f"{int(targ_sx)}", prov_sx['text']])
         res_data.append(["Midspan", "SECONDARY", "Long (Ly)", f"{int(targ_sy)}", prov_sy['text']])
+        main_mid_prov = prov_sx
+        sec_mid_prov = prov_sy
     else:
         res_data.append(["Midspan", "MAIN", "Long (Ly)", f"{int(targ_sy)}", prov_sy['text']])
         res_data.append(["Midspan", "SECONDARY", "Short (Lx)", f"{int(targ_sx)}", prov_sx['text']])
+        main_mid_prov = prov_sy
+        sec_mid_prov = prov_sx
 
     # Support Logic
     if targ_sx_sup >= targ_sy_sup:
@@ -187,7 +244,14 @@ if st.button("Calculate Design"):
     df_res = pd.DataFrame(res_data, columns=["Location", "Role", "Direction", "Area Req (mm²)", "Provision"])
     st.table(df_res)
 
-    # 5. CHECKS
+    # 5. VISUALIZATION (New!)
+    st.subheader("Slab Layout")
+    st.write("Visual representation of Midspan Reinforcement:")
+    # We pass the provisions for Lx (Short Span) and Ly (Long Span) specifically
+    fig = draw_slab_diagram(Lx, Ly, prov_sx, prov_sy)
+    st.pyplot(fig)
+
+    # 6. CHECKS
     st.subheader("Design Checks")
     col1, col2 = st.columns(2)
 
